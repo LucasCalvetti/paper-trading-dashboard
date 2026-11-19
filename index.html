@@ -11,12 +11,14 @@
   --bg: #f7f7f5; --surface: #ffffff; --text: #141413; --text2: #5c5b57; --line: #e4e3df;
   --good: #1a8a5a; --bad: #c8412b; --accent: #2a78d6;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #8a6fd1;
+  --s6: #d6457a; --s7: #0f9bb5; --s8: #7a8a1f; --s9: #b5651d; --s10: #5c6bc0;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #141413; --surface: #1e1e1c; --text: #f0efec; --text2: #b3b2aa; --line: #34342f;
     --good: #3cc488; --bad: #ef6f58; --accent: #5a9ff0;
     --s1: #5a9ff0; --s2: #e9733f; --s3: #2bc28c; --s4: #e0a92a; --s5: #a58ae6;
+    --s6: #f06a9a; --s7: #2bb8d1; --s8: #a3b53a; --s9: #d98b4a; --s10: #8592e0;
   }
 }
 * { box-sizing: border-box; }
@@ -40,7 +42,7 @@ h2 { font-size: 18px; margin: 36px 0 4px; }
 .tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--text);
   padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; }
 .tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.bar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
+.bar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr 52px 76px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
 .bar .track { background: var(--line); border-radius: 4px; height: 10px; overflow: hidden; }
 .bar .fill { background: var(--accent); height: 100%; }
 .bar .n { text-align: right; font-variant-numeric: tabular-nums; }
@@ -81,7 +83,7 @@ const NAMES = {VTI:"Todo EE.UU. (VTI)", VXUS:"Resto del mundo (VXUS)", BND:"Bono
   XYZ:"Block (XYZ)", ETHA:"Ethereum (ETHA)", "RGC (virtual)":"Regencell (RGC)", "CASH:ANT":"Reserva para Anthropic"};
 const nm = t => NAMES[t] || t;
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const COLORS = () => ["--s1","--s2","--s3","--s4","--s5"].map(css);
+const COLORS = () => ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8","--s9","--s10"].map(css);
 const pct = (x, d=2) => (x > 0 ? "+" : "") + (x*100).toFixed(d).replace(".", ",") + "%";
 const pts = x => Math.abs(x*100).toFixed(2).replace(".", ",");
 const usd = x => "USD " + Math.round(x).toLocaleString("es-AR");
@@ -122,15 +124,27 @@ function verdict(diff, who) {
 function lineChart(el, series, labels) {
   const c = COLORS();
   return new Chart(el, {type:"line",
-    data:{labels, datasets: series.map((s,i) => ({label:s.label, data:s.data, borderColor:c[i%c.length],
+    data:{labels, datasets: series.map((s,i) => ({label:s.label, data:s.data, borderColor:c[i%c.length], _c:c[i%c.length],
       backgroundColor:c[i%c.length], borderWidth: i === 0 && s.main ? 3 : 2, pointRadius: labels.length > 30 ? 0 : 3,
       borderDash: s.dash ? [6,4] : [], tension:.15}))},
-    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
-      plugins:{legend:{position:"bottom", labels:{color:css("--text"), usePointStyle:true, boxWidth:8}},
+    // Pasar el mouse muestra solo la línea más cercana y apaga las demás.
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"nearest", intersect:false},
+      onHover:(e, els, ch) => highlight(ch, els.length ? els[0].datasetIndex : null),
+      plugins:{legend:{position:"bottom", labels:{color:css("--text"), usePointStyle:true, boxWidth:8},
+          onHover:(e, item, lg) => highlight(lg.chart, item.datasetIndex), onLeave:(e, item, lg) => highlight(lg.chart, null)},
         tooltip:{callbacks:{label: x => ` ${x.dataset.label}: ${pct(x.parsed.y/100)}`}}},
       scales:{x:{ticks:{color:css("--text2"), maxTicksLimit:8}, grid:{color:css("--line")}},
         y:{ticks:{color:css("--text2"), callback: v => v.toFixed(1).replace(".", ",") + "%"},
            grid:{color: ctx => ctx.tick.value === 0 ? css("--text2") : css("--line")}}}}});
+}
+function highlight(ch, idx) {
+  if (ch._hi === idx) return;
+  ch._hi = idx;
+  ch.data.datasets.forEach((d, i) => {
+    const on = idx === null || i === idx;
+    d.borderColor = d.backgroundColor = on ? d._c : d._c + "30";
+  });
+  ch.update("none");
 }
 // Todas arrancan en 0% (USD 10.000 a la apertura del primer día); después, el cierre de cada día.
 const withStart = s => [0, ...s.pct.map(x => +(x*100).toFixed(3))];
@@ -170,7 +184,11 @@ function render(d) {
   <div class="card">
     <p id="explain" style="margin-top:0"></p>
     <div class="chart"><canvas id="one"></canvas></div>
-    <h3 style="font-size:15px;margin:20px 0 4px">Qué tiene hoy</h3>
+    <h3 style="font-size:15px;margin:24px 0 4px">Cada acción por separado</h3>
+    <p class="muted" style="margin:0 0 8px">Cuánto ganó o perdió cada una desde que entró a la cartera. Pasá el mouse (o el dedo) por una línea para ver cuál es.</p>
+    <div class="chart"><canvas id="pos"></canvas></div>
+    <h3 style="font-size:15px;margin:24px 0 4px">Qué tiene hoy</h3>
+    <div class="bar muted" style="font-size:12px"><span></span><span></span><span class="n">Peso</span><span class="n">Desde compra</span></div>
     <div id="hold"></div>
   </div>
   ${ant ? `<p class="muted" style="margin-top:12px">Anthropic (ANT): ${esc(antText)}${antDate}. Mientras tanto la plata queda en efectivo en la cartera Lucas.</p>` : ""}
@@ -205,7 +223,7 @@ function render(d) {
   lineChart(document.getElementById("all"),
     [...P.map(p => ({label:p.label, data:withStart(p)})), ...(spy ? [{label:spy.label, data:withStart(spy), dash:true}] : [])], labels);
 
-  let one;
+  let one, pos;
   const show = i => {
     const p = P[i];
     document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.i == i));
@@ -213,8 +231,13 @@ function render(d) {
     one && one.destroy();
     one = lineChart(document.getElementById("one"),
       [{label:p.label, data:withStart(p), main:true}, ...p.benchmarks.map(b => ({label:b.label, data:withStart(b), dash:true}))], labels);
-    document.getElementById("hold").innerHTML = p.holdings.map(([t,w]) => `
-      <div class="bar"><span>${esc(nm(t))}</span><span class="track"><span class="fill" style="display:block;width:${Math.min(w*100/ Math.max(...p.holdings.map(h=>h[1])) ,100)}%"></span></span><span class="n">${(w*100).toFixed(1).replace(".", ",")}%</span></div>`).join("");
+    pos && pos.destroy();
+    const ps = [...p.positions].sort((a,b) => (last(b.pct) ?? -9) - (last(a.pct) ?? -9));
+    pos = lineChart(document.getElementById("pos"),
+      ps.map(x => ({label:nm(x.ticker), data:[x.pct[0] === null ? null : 0, ...x.pct.map(v => v === null ? null : +(v*100).toFixed(3))]})), labels);
+    const top = Math.max(...p.holdings.map(h => h[1]));
+    document.getElementById("hold").innerHTML = p.holdings.map(([t,w,r]) => `
+      <div class="bar"><span>${esc(nm(t))}</span><span class="track"><span class="fill" style="display:block;width:${w*100/top}%"></span></span><span class="n">${(w*100).toFixed(1).replace(".", ",")}%</span><span class="n ${r == null ? "muted" : r >= 0 ? "good" : "bad"}">${r == null ? "-" : pct(r)}</span></div>`).join("");
   };
   document.getElementById("tabs").onclick = e => { if (e.target.dataset.i) show(+e.target.dataset.i); };
   show(0);
