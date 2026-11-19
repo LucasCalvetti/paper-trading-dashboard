@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Experimento de carteras</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f7f7f5; --surface: #ffffff; --text: #141413; --text2: #5c5b57; --line: #e4e3df;
+  --good: #1a8a5a; --bad: #c8412b; --accent: #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #8a6fd1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413; --surface: #1e1e1c; --text: #f0efec; --text2: #b3b2aa; --line: #34342f;
+    --good: #3cc488; --bad: #ef6f58; --accent: #5a9ff0;
+    --s1: #5a9ff0; --s2: #e9733f; --s3: #2bc28c; --s4: #e0a92a; --s5: #a58ae6;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 36px 0 4px; }
+.sub { color: var(--text2); margin: 0 0 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.big { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.good { color: var(--good); } .bad { color: var(--bad); }
+.muted { color: var(--text2); font-size: 13px; }
+.rank { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; }
+.vs { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
+.vs li { padding: 2px 0; }
+.chart { position: relative; height: 340px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; }
+.tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.bar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
+.bar .track { background: var(--line); border-radius: 4px; height: 10px; overflow: hidden; }
+.bar .fill { background: var(--accent); height: 100%; }
+.bar .n { text-align: right; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--text2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+details { margin-top: 8px; } summary { cursor: pointer; font-weight: 600; }
+dl dt { font-weight: 600; margin-top: 10px; } dl dd { margin: 2px 0 0; color: var(--text2); }
+#lock { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+#lock form { width: 100%; max-width: 360px; }
+input[type=password] { width: 100%; padding: 10px 12px; font: inherit; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); margin: 12px 0 8px; }
+button.go { width: 100%; padding: 10px; font: inherit; font-weight: 600; border: 0; border-radius: 8px;
+  background: var(--accent); color: #fff; cursor: pointer; margin-top: 8px; }
+#err { color: var(--bad); min-height: 1.5em; font-size: 14px; }
+.note { border-left: 3px solid var(--s4); padding: 8px 12px; background: var(--surface); border-radius: 0 8px 8px 0; }
+@media (max-width: 560px) { .chart { height: 280px; } .big { font-size: 26px; } }
+</style>
+</head>
+<body>
+<div id="lock">
+  <form class="card" id="f">
+    <h1 style="font-size:20px">Experimento de carteras</h1>
+    <p class="muted">Los datos están cifrados. Poné la clave para verlos.</p>
+    <input type="password" id="pw" autocomplete="current-password" placeholder="Clave" required>
+    <label class="muted"><input type="checkbox" id="remember" checked> Recordar en este navegador</label>
+    <button class="go" type="submit">Entrar</button>
+    <div id="err" role="alert"></div>
+  </form>
+</div>
+<main id="app" hidden></main>
+<script>
+const NAMES = {VTI:"Todo EE.UU. (VTI)", VXUS:"Resto del mundo (VXUS)", BND:"Bonos (BND)", GLDM:"Oro (GLDM)",
+  MELI:"MercadoLibre (MELI)", YPF:"YPF", TSLA:"Tesla (TSLA)", ANT:"Anthropic (ANT)", PLTR:"Palantir (PLTR)",
+  META:"Meta (META)", COIN:"Coinbase (COIN)", GME:"GameStop (GME)", OKLO:"Oklo (OKLO)", TEM:"Tempus AI (TEM)",
+  XYZ:"Block (XYZ)", ETHA:"Ethereum (ETHA)", "RGC (virtual)":"Regencell (RGC)", "CASH:ANT":"Reserva para Anthropic"};
+const nm = t => NAMES[t] || t;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COLORS = () => ["--s1","--s2","--s3","--s4","--s5"].map(css);
+const pct = (x, d=2) => (x > 0 ? "+" : "") + (x*100).toFixed(d).replace(".", ",") + "%";
+const pts = x => Math.abs(x*100).toFixed(2).replace(".", ",");
+const usd = x => "USD " + Math.round(x).toLocaleString("es-AR");
+const fdate = s => s ? s.split("-").reverse().slice(0,2).join("/") : "";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const last = a => a[a.length-1];
+
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(blob, pw) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", hash:"SHA-256", salt:b64(blob.salt), iterations:blob.iter},
+    base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(blob.iv)}, key, b64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+let blob;
+async function unlock(pw, remember) {
+  blob = blob || await (await fetch("data.json", {cache:"no-store"})).json();
+  const data = await decrypt(blob, pw);
+  try { remember ? localStorage.setItem("k", pw) : localStorage.removeItem("k"); } catch (e) {}
+  document.getElementById("lock").hidden = true;
+  render(data);
+}
+document.getElementById("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = document.getElementById("err"); err.textContent = "Abriendo...";
+  try { await unlock(document.getElementById("pw").value, document.getElementById("remember").checked); }
+  catch (x) { err.textContent = blob ? "Clave incorrecta." : "No se pudieron bajar los datos."; }
+});
+(async () => { let k = null; try { k = localStorage.getItem("k"); } catch (e) {}
+  if (k) { try { await unlock(k, true); } catch (e) {} } })();
+
+function verdict(diff, who) {
+  if (Math.abs(diff) < 0.0005) return `<li>Empata con ${esc(who)}</li>`;
+  return diff > 0 ? `<li class="good">▲ Le gana a ${esc(who)} por ${pts(diff)} puntos</li>`
+                  : `<li class="bad">▼ Pierde contra ${esc(who)} por ${pts(diff)} puntos</li>`;
+}
+function lineChart(el, series, labels) {
+  const c = COLORS();
+  return new Chart(el, {type:"line",
+    data:{labels, datasets: series.map((s,i) => ({label:s.label, data:s.data, borderColor:c[i%c.length],
+      backgroundColor:c[i%c.length], borderWidth: i === 0 && s.main ? 3 : 2, pointRadius: labels.length > 30 ? 0 : 3,
+      borderDash: s.dash ? [6,4] : [], tension:.15}))},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
+      plugins:{legend:{position:"bottom", labels:{color:css("--text"), usePointStyle:true, boxWidth:8}},
+        tooltip:{callbacks:{label: x => ` ${x.dataset.label}: ${pct(x.parsed.y/100)}`}}},
+      scales:{x:{ticks:{color:css("--text2"), maxTicksLimit:8}, grid:{color:css("--line")}},
+        y:{ticks:{color:css("--text2"), callback: v => v.toFixed(1).replace(".", ",") + "%"},
+           grid:{color: ctx => ctx.tick.value === 0 ? css("--text2") : css("--line")}}}}});
+}
+// Todas arrancan en 0% (USD 10.000 a la apertura del primer día); después, el cierre de cada día.
+const withStart = s => [0, ...s.pct.map(x => +(x*100).toFixed(3))];
+
+function render(d) {
+  const P = d.portfolios, days = P[0] ? P[0].days : [];
+  const labels = ["Inicio", ...days.map(fdate)];
+  const sorted = [...P].sort((a,b) => last(b.pct) - last(a.pct));
+  const ant = d.listing && d.listing.ANT;
+  const antText = ant ? ({waiting:"todavía no cotiza", trading:`cotiza desde el ${fdate(ant.first_session)}, se compra después de 5 ruedas (va ${ant.sessions})`, bought:"ya está comprada"}[ant.stage] || ant.stage) : null;
+  const antDate = ant && ant.stage === "waiting" && ant.ipo && ant.ipo.date ? ` · salida esperada: ${fdate(ant.ipo.date)}${ant.ipo.price_range ? `, a USD ${ant.ipo.price_range.replace("-", " a ")}` : ""}` : "";
+  const app = document.getElementById("app");
+  app.innerHTML = `
+  <h1>Cómo viene el experimento</h1>
+  <p class="sub">Día ${days.length} de unos 250 hábiles · datos al cierre del ${fdate(d.last_day)} · arrancó el ${fdate(d.start)}/2026</p>
+  <p class="note">Las 4 carteras arrancaron con USD 10.000 de plata ficticia. El % es cuánto ganó o perdió cada una desde el inicio.
+  ${days.length < 40 ? "<br><b>Con tan pocos días las diferencias son ruido</b>: para sacar conclusiones hacen falta meses." : ""}</p>
+
+  <h2>Ranking</h2>
+  <p class="sub">Ordenadas de la que más ganó a la que menos. Debajo, contra qué se compara cada una.</p>
+  <div class="grid">${sorted.map((p,i) => `
+    <div class="card">
+      <div class="rank">${i+1}º · ${p.ai ? "maneja la IA" : "nadie la toca"}</div>
+      <div style="font-weight:600;font-size:17px">${esc(p.label)}</div>
+      <div class="big ${last(p.pct) >= 0 ? "good" : "bad"}">${pct(last(p.pct))}</div>
+      <div class="muted">${usd(last(p.usd))} · peor caída: ${pct(p.max_drawdown)}</div>
+      <ul class="vs">${p.benchmarks.map(b => verdict(last(p.pct) - last(b.pct), b.label)).join("")}</ul>
+    </div>`).join("")}</div>
+
+  <h2>Las 4 carteras juntas</h2>
+  <p class="sub">Cuánto ganó o perdió cada una desde el inicio, día por día, con el S&amp;P 500 de referencia (punteado).</p>
+  <div class="card"><div class="chart"><canvas id="all"></canvas></div></div>
+
+  <h2>Cada cartera contra su referencia</h2>
+  <p class="sub">"Sin tocar" es la misma cartera del primer día sin que nadie haga nada: si la IA no le gana, no está sumando.</p>
+  <div class="tabs" id="tabs">${P.map((p,i) => `<button aria-pressed="${i===0}" data-i="${i}">${esc(p.label)}</button>`).join("")}</div>
+  <div class="card">
+    <p id="explain" style="margin-top:0"></p>
+    <div class="chart"><canvas id="one"></canvas></div>
+    <h3 style="font-size:15px;margin:20px 0 4px">Qué tiene hoy</h3>
+    <div id="hold"></div>
+  </div>
+  ${ant ? `<p class="muted" style="margin-top:12px">Anthropic (ANT): ${esc(antText)}${antDate}. Mientras tanto la plata queda en efectivo en la cartera Lucas.</p>` : ""}
+
+  <h2>Qué decidió la IA</h2>
+  <p class="sub">Cada vez que algo se mueve fuerte, la IA lo analiza. Ante la duda no opera; si propone operar, otro agente argumenta en contra antes.</p>
+  ${d.ai.length ? `<div class="scroll card"><table><thead><tr><th>Día</th><th>Cartera</th><th>Acción</th><th>Propuso</th><th>Resultado</th><th>Por qué</th></tr></thead><tbody>
+    ${d.ai.map(a => `<tr><td>${fdate(a.day)}</td><td>${esc(a.portfolio)}</td><td>${esc(nm(a.ticker))}</td><td>${esc(a.action)}</td><td>${esc(a.decision)}</td><td class="muted">${esc(a.summary)}</td></tr>`).join("")}
+  </tbody></table></div>` : `<p class="card">Todavía no tuvo que decidir nada.</p>`}
+
+  <h2>Operaciones</h2>
+  <p class="sub">Todas las compras y ventas, la más nueva arriba.</p>
+  <div class="scroll card"><table><thead><tr><th>Día</th><th>Cartera</th><th>Acción</th><th>Tipo</th><th class="n">Monto</th><th>Motivo</th></tr></thead><tbody>
+    ${d.orders.map(o => `<tr><td>${fdate(o.day)}</td><td>${esc(o.portfolio)}</td><td>${esc(nm(o.ticker))}</td><td>${o.side}</td><td class="n">${o.usd ? usd(o.usd) : "-"}</td><td>${esc(o.why)}</td></tr>`).join("")}
+  </tbody></table></div>
+
+  <h2>Glosario</h2>
+  <div class="card"><dl>
+    <dt>Rendimiento (%)</dt><dd>Cuánto ganó o perdió la cartera desde que arrancó. +5% sobre USD 10.000 son USD 500.</dd>
+    <dt>Puntos</dt><dd>Diferencia entre dos porcentajes. Si una hizo +5% y la otra +3%, le gana por 2 puntos.</dd>
+    <dt>Peor caída</dt><dd>Lo máximo que bajó desde su punto más alto. Mide cuánto susto hay que aguantar en el camino.</dd>
+    <dt>Referencia (benchmark)</dt><dd>Contra qué se compara: el S&amp;P 500 (las 500 empresas más grandes de EE.UU.), el Nasdaq 100 (tecnológicas) o la misma cartera sin tocar.</dd>
+    <dt>ETF</dt><dd>Un fondo que compra muchas acciones de una vez. VTI es todo EE.UU., VXUS el resto del mundo, BND bonos, GLDM oro.</dd>
+    <dt>Rebalanceo</dt><dd>Volver a los porcentajes originales cuando algo se desvió mucho: vender un poco de lo que subió y comprar de lo que bajó.</dd>
+  </dl></div>
+  <p class="muted" style="margin-top:24px">Se actualiza solo cada día hábil después del cierre de EE.UU. Es plata ficticia y no es asesoramiento financiero.
+  <a href="#" id="out" style="color:var(--accent)">Salir</a></p>`;
+  app.hidden = false;
+  document.getElementById("out").onclick = e => { e.preventDefault(); try { localStorage.removeItem("k"); } catch (x) {} location.reload(); };
+
+  const spy = P.flatMap(p => p.benchmarks).find(b => b.name === "sp500");
+  lineChart(document.getElementById("all"),
+    [...P.map(p => ({label:p.label, data:withStart(p)})), ...(spy ? [{label:spy.label, data:withStart(spy), dash:true}] : [])], labels);
+
+  let one;
+  const show = i => {
+    const p = P[i];
+    document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.i == i));
+    document.getElementById("explain").textContent = p.explain;
+    one && one.destroy();
+    one = lineChart(document.getElementById("one"),
+      [{label:p.label, data:withStart(p), main:true}, ...p.benchmarks.map(b => ({label:b.label, data:withStart(b), dash:true}))], labels);
+    document.getElementById("hold").innerHTML = p.holdings.map(([t,w]) => `
+      <div class="bar"><span>${esc(nm(t))}</span><span class="track"><span class="fill" style="display:block;width:${Math.min(w*100/ Math.max(...p.holdings.map(h=>h[1])) ,100)}%"></span></span><span class="n">${(w*100).toFixed(1).replace(".", ",")}%</span></div>`).join("");
+  };
+  document.getElementById("tabs").onclick = e => { if (e.target.dataset.i) show(+e.target.dataset.i); };
+  show(0);
+}
+</script>
+</body>
+</html>
