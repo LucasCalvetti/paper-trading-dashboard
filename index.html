@@ -42,7 +42,7 @@ h2 { font-size: 18px; margin: 36px 0 4px; }
 .tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--text);
   padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; }
 .tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.bar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr 52px 76px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
+.bar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr 52px 76px 86px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
 .bar .track { background: var(--line); border-radius: 4px; height: 10px; overflow: hidden; }
 .bar .fill { background: var(--accent); height: 100%; }
 .bar .n { text-align: right; font-variant-numeric: tabular-nums; }
@@ -61,7 +61,7 @@ button.go { width: 100%; padding: 10px; font: inherit; font-weight: 600; border:
   background: var(--accent); color: #fff; cursor: pointer; margin-top: 8px; }
 #err { color: var(--bad); min-height: 1.5em; font-size: 14px; }
 .note { border-left: 3px solid var(--s4); padding: 8px 12px; background: var(--surface); border-radius: 0 8px 8px 0; }
-@media (max-width: 560px) { .chart { height: 280px; } .big { font-size: 26px; } }
+@media (max-width: 560px) { .bar { grid-template-columns: minmax(0, 1fr) 44px 64px 70px; gap: 6px; } .bar .track, .bar .tph { display: none; } .chart { height: 280px; } .big { font-size: 26px; } }
 </style>
 </head>
 <body>
@@ -188,7 +188,7 @@ function render(d) {
     <p class="muted" style="margin:0 0 8px">Cuánto ganó o perdió cada una desde que entró a la cartera. Pasá el mouse (o el dedo) por una línea para ver cuál es.</p>
     <div class="chart"><canvas id="pos"></canvas></div>
     <h3 style="font-size:15px;margin:24px 0 4px">Qué tiene hoy</h3>
-    <div class="bar muted" style="font-size:12px"><span></span><span></span><span class="n">Peso</span><span class="n">Desde compra</span></div>
+    <div class="bar muted" style="font-size:12px"><span></span><span class="tph"></span><span class="n">Peso</span><span class="n" id="dayhdr">Último día</span><span class="n">Desde compra</span></div>
     <div id="hold"></div>
   </div>
   ${ant ? `<p class="muted" style="margin-top:12px">Anthropic (ANT): ${esc(antText)}${antDate}. Mientras tanto la plata queda en efectivo en la cartera Lucas.</p>` : ""}
@@ -236,8 +236,10 @@ function render(d) {
     pos = lineChart(document.getElementById("pos"),
       ps.map(x => ({label:nm(x.ticker), data:[x.pct[0] === null ? null : 0, ...x.pct.map(v => v === null ? null : +(v*100).toFixed(3))]})), labels);
     const top = Math.max(...p.holdings.map(h => h[1]));
-    document.getElementById("hold").innerHTML = p.holdings.map(([t,w,r]) => `
-      <div class="bar"><span>${esc(nm(t))}</span><span class="track"><span class="fill" style="display:block;width:${w*100/top}%"></span></span><span class="n">${(w*100).toFixed(1).replace(".", ",")}%</span><span class="n ${r == null ? "muted" : r >= 0 ? "good" : "bad"}">${r == null ? "-" : pct(r)}</span></div>`).join("");
+    const cls = r => r == null ? "muted" : r >= 0 ? "good" : "bad";
+    document.getElementById("dayhdr").textContent = "Día " + fdate(d.last_day);
+    document.getElementById("hold").innerHTML = p.holdings.map(([t,w,r,dd]) => `
+      <div class="bar"><span>${esc(nm(t))}</span><span class="track"><span class="fill" style="display:block;width:${w*100/top}%"></span></span><span class="n">${(w*100).toFixed(1).replace(".", ",")}%</span><span class="n ${cls(dd)}">${dd == null ? "-" : pct(dd)}</span><span class="n ${cls(r)}">${r == null ? "-" : pct(r)}</span></div>`).join("");
   };
   document.getElementById("tabs").onclick = e => { if (e.target.dataset.i) show(+e.target.dataset.i); };
   show(0);
